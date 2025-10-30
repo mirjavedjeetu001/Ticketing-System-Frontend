@@ -94,22 +94,22 @@ const TicketsPage: React.FC = () => {
     if (ticket.severityId) {
       // Map severity levels to colors (S1=Critical, S2=High, S3=Medium, S4=Low)
       switch (ticket.severityId.level) {
-        case 1: return 'bg-red-100 text-red-800'; // S1 - Critical
-        case 2: return 'bg-orange-100 text-orange-800'; // S2 - High  
-        case 3: return 'bg-yellow-100 text-yellow-800'; // S3 - Medium
-        case 4: return 'bg-green-100 text-green-800'; // S4 - Low
-        default: return 'bg-gray-100 text-gray-800';
+        case 1: return 'bg-red-50 text-red-700 border-red-200'; // S1 - Critical
+        case 2: return 'bg-orange-50 text-orange-700 border-orange-200'; // S2 - High  
+        case 3: return 'bg-yellow-50 text-yellow-700 border-yellow-200'; // S3 - Medium
+        case 4: return 'bg-green-50 text-green-700 border-green-200'; // S4 - Low
+        default: return 'bg-gray-50 text-gray-700 border-gray-200';
       }
     }
     
     // Legacy severity color mapping
     const severity = ticket.severity;
     switch (severity) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'critical': return 'bg-red-50 text-red-700 border-red-200';
+      case 'high': return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'medium': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      case 'low': return 'bg-green-50 text-green-700 border-green-200';
+      default: return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
@@ -117,14 +117,14 @@ const TicketsPage: React.FC = () => {
     if (ticket.priorityId) {
       // Map priority levels to colors (P1=Critical, P2=High, P3=Medium, P4=Low)
       switch (ticket.priorityId.level) {
-        case 1: return 'bg-purple-100 text-purple-800'; // P1 - Critical
-        case 2: return 'bg-pink-100 text-pink-800'; // P2 - High  
-        case 3: return 'bg-blue-100 text-blue-800'; // P3 - Medium
-        case 4: return 'bg-green-100 text-green-800'; // P4 - Low
-        default: return 'bg-gray-100 text-gray-800';
+        case 1: return 'bg-purple-50 text-purple-700 border-purple-200'; // P1 - Critical
+        case 2: return 'bg-pink-50 text-pink-700 border-pink-200'; // P2 - High  
+        case 3: return 'bg-blue-50 text-blue-700 border-blue-200'; // P3 - Medium
+        case 4: return 'bg-green-50 text-green-700 border-green-200'; // P4 - Low
+        default: return 'bg-gray-50 text-gray-700 border-gray-200';
       }
     }
-    return 'bg-gray-100 text-gray-800';
+    return 'bg-gray-50 text-gray-700 border-gray-200';
   };
 
   const formatSLATime = (dateString?: string) => {
@@ -175,11 +175,11 @@ const TicketsPage: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return 'bg-blue-100 text-blue-800';
-      case 'in_progress': return 'bg-purple-100 text-purple-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'open': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'in_progress': return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'resolved': return 'bg-green-50 text-green-700 border-green-200';
+      case 'closed': return 'bg-gray-50 text-gray-700 border-gray-200';
+      default: return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
@@ -195,16 +195,16 @@ const TicketsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
-            <p className="text-gray-600">Manage and track support tickets</p>
+            <h1 className="text-2xl font-semibold text-gray-900">Tickets</h1>
+            <p className="text-sm text-gray-600 mt-1">Manage and track support tickets</p>
           </div>
         </div>
-        <div className="glass-card p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading tickets...</p>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-3 text-sm text-gray-600">Loading tickets...</p>
         </div>
       </div>
     );
@@ -212,16 +212,16 @@ const TicketsPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="space-y-6">
+      <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
-            <p className="text-gray-600">Manage and track support tickets</p>
+            <h1 className="text-2xl font-semibold text-gray-900">Tickets</h1>
+            <p className="text-sm text-gray-600 mt-1">Manage and track support tickets</p>
           </div>
         </div>
-        <div className="glass-card p-8 text-center">
-          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <p className="text-red-600">{error}</p>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 text-center">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-3" />
+          <p className="text-sm text-red-600">{error}</p>
           <button 
             onClick={fetchTickets}
             className="mt-4 btn-primary"
@@ -234,12 +234,12 @@ const TicketsPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
-          <p className="text-gray-600">Manage and track support tickets ({tickets.length} total)</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Tickets</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage and track support tickets ({tickets.length} total)</p>
         </div>
         <Link
           to="/tickets/new"
@@ -251,15 +251,15 @@ const TicketsPage: React.FC = () => {
       </div>
 
       {/* Tickets List */}
-      <div className="glass-card">
-        <div className="px-6 py-4 border-b border-white/10">
-          <h3 className="text-lg font-medium">All Tickets</h3>
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-base font-medium text-gray-900">All Tickets</h3>
         </div>
         
         {tickets.length === 0 ? (
           <div className="p-8 text-center">
-            <div className="mx-auto h-12 w-12 text-gray-300 mb-4">📄</div>
-            <p className="text-lg mb-2">No tickets found</p>
+            <div className="text-4xl mb-3">📄</div>
+            <p className="text-base mb-2 text-gray-900">No tickets found</p>
             <p className="text-sm text-gray-600 mb-4">Get started by creating your first ticket.</p>
             <Link
               to="/tickets/new"
@@ -271,8 +271,8 @@ const TicketsPage: React.FC = () => {
         ) : (
           <div className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-white/10">
-                <thead className="bg-black/5">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Ticket ID
@@ -306,13 +306,13 @@ const TicketsPage: React.FC = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10">
+                <tbody className="bg-white divide-y divide-gray-200">
                   {tickets.filter(ticket => ticket && ticket._id).map((ticket) => (
-                    <tr key={ticket._id} className="hover:bg-white/5 transition-colors">
+                    <tr key={ticket._id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Link 
                           to={`/tickets/${ticket.ticketId || ticket._id}`}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
+                          className="text-primary-600 hover:text-primary-700 font-medium text-sm"
                         >
                           {ticket.ticketId || ticket._id?.substring(0, 8) || 'Unknown'}
                         </Link>
@@ -336,18 +336,18 @@ const TicketsPage: React.FC = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${getStatusColor(ticket.status)}`}>
                           {ticket.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeverityColor(ticket)}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${getSeverityColor(ticket)}`}>
                           {ticket.severityId?.name || ticket.severity}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {ticket.priorityId ? (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(ticket)}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${getPriorityColor(ticket)}`}>
                             {ticket.priorityId.name}
                           </span>
                         ) : (
@@ -361,8 +361,8 @@ const TicketsPage: React.FC = () => {
                             const breachStatus = getSLABreachStatus(ticket);
                             if (!breachStatus) return <span className="text-xs text-gray-400">No SLA</span>;
                             return (
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                breachStatus.withinSLA ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${
+                                breachStatus.withinSLA ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
                               }`}>
                                 {breachStatus.withinSLA ? '✅' : '❌'} {breachStatus.text}
                               </span>
@@ -373,8 +373,8 @@ const TicketsPage: React.FC = () => {
                           const slaInfo = formatSLATime(ticket.slaResponseDue);
                           if (!slaInfo) return <span className="text-xs text-gray-400">No SLA</span>;
                           return (
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              slaInfo.isOverdue ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${
+                              slaInfo.isOverdue ? 'bg-red-50 text-red-700 border-red-200' : 'bg-blue-50 text-blue-700 border-blue-200'
                             }`}>
                               {slaInfo.text}
                             </span>

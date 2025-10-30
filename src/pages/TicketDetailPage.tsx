@@ -527,11 +527,6 @@ const TicketDetailPage: React.FC = () => {
               
               {/* Status Actions */}
               <div className="flex items-center space-x-2">
-                {/* Debug info */}
-                <span className="text-xs text-gray-500 mr-4">
-                  Status: "{ticket.status}" | User: {user?.role} | Creator: {ticket.createdBy.id === user?.id ? 'Yes' : 'No'}
-                </span>
-                
                 {ticket.status === 'open' && (
                   <button
                     onClick={() => updateTicketStatus('in_progress')}
@@ -734,15 +729,23 @@ const TicketDetailPage: React.FC = () => {
                       <label className="text-sm font-semibold text-slate-700 mb-2 block">
                         Mentioned ({ticket.mentionedUsers.length})
                       </label>
-                      <div className="space-y-2">
-                        {ticket.mentionedUsers.map((mentionedUser, index) => (
-                          <div key={index} className="flex items-center space-x-3">
-                            <div className="w-6 h-6 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
-                              {mentionedUser.firstName[0]}{mentionedUser.lastName[0]}
+                      <div className="space-y-2.5 max-h-48 overflow-y-auto">
+                        {/* Filter out duplicate users by _id */}
+                        {Array.from(new Map(
+                          ticket.mentionedUsers.map(user => [user._id, user])
+                        ).values()).map((mentionedUser, index) => (
+                          <div 
+                            key={`mentioned-${mentionedUser._id || index}`} 
+                            className="flex items-center space-x-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
+                          >
+                            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-semibold text-xs shadow-sm">
+                              {mentionedUser.firstName?.[0] || 'U'}{mentionedUser.lastName?.[0] || 'N'}
                             </div>
-                            <div>
-                              <p className="text-sm font-medium text-slate-800">{mentionedUser.firstName} {mentionedUser.lastName}</p>
-                              <p className="text-xs text-slate-500">{mentionedUser.email}</p>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-800 truncate">
+                                {mentionedUser.firstName} {mentionedUser.lastName}
+                              </p>
+                              <p className="text-xs text-slate-500 truncate">{mentionedUser.email}</p>
                             </div>
                           </div>
                         ))}

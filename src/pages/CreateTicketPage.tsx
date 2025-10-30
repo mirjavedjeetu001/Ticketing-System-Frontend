@@ -151,11 +151,31 @@ const CreateTicketPage: React.FC = () => {
     try {
       console.log('Form data before submit:', formData);
       
-      // Extract mentions from text (e.g., "@username" or "@departmentname")
+      // Extract mentions from text (e.g., "@username", "@email@domain.com")
       const extractMentions = (text: string): string[] => {
-        const mentionRegex = /@(\w+)/g;
-        const matches = text.match(mentionRegex);
-        return matches ? matches.map(m => m.substring(1)) : [];
+        // Match @email@domain.com or @username
+        const emailMentionRegex = /@([\w.-]+@[\w.-]+\.[\w]+)/g;
+        const usernameMentionRegex = /@(\w+)/g;
+        
+        const mentions: string[] = [];
+        
+        // First extract email mentions
+        let match;
+        while ((match = emailMentionRegex.exec(text)) !== null) {
+          if (match[1]) {
+            mentions.push(match[1]);
+          }
+        }
+        
+        // Then extract username mentions (but skip if already part of email)
+        const textWithoutEmails = text.replace(emailMentionRegex, '');
+        const usernameMatches = textWithoutEmails.match(usernameMentionRegex);
+        if (usernameMatches) {
+          mentions.push(...usernameMatches.map(m => m.substring(1)));
+        }
+        
+        // Remove duplicates
+        return [...new Set(mentions)];
       };
 
       // Get mentions from both description and mentions field
