@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit3, Trash2, Globe, Smartphone, Server, Headphones, CreditCard, Eye, EyeOff, Palette, Users, Package } from 'lucide-react';
+import { Plus, Edit3, Trash2, Globe, Smartphone, Server, Headphones, CreditCard, Eye, EyeOff, Users, Package, X } from 'lucide-react';
 import api from '../../api/client';
 
 interface Product {
@@ -8,10 +8,25 @@ interface Product {
   description: string;
   category: string;
   departments: string[];
+  businessUnitId?: {
+    _id: string;
+    name: string;
+  };
   isActive: boolean;
   icon: string;
   color: string;
   createdAt: string;
+}
+
+interface BusinessUnit {
+  _id: string;
+  name: string;
+  description: string;
+}
+
+interface Department {
+  _id: string;
+  name: string;
 }
 
 interface ProductManagementProps {
@@ -32,13 +47,10 @@ const colorOptions = [
   '#84cc16', '#f97316', '#ec4899', '#6366f1', '#14b8a6', '#f43f5e'
 ];
 
-const departmentOptions = [
-  'Engineering', 'QA', 'Product', 'DevOps', 'Support', 
-  'Customer Success', 'Finance', 'Marketing', 'Sales'
-];
-
 const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -47,12 +59,15 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
     description: '',
     category: '',
     departments: [] as string[],
+    businessUnitId: '',
     icon: 'Globe',
     color: '#3b82f6',
   });
 
   useEffect(() => {
     fetchProducts();
+    fetchBusinessUnits();
+    fetchDepartments();
   }, []);
 
   const fetchProducts = async () => {
@@ -64,6 +79,24 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
       console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBusinessUnits = async () => {
+    try {
+      const response = await api.get('/business-units');
+      setBusinessUnits(response.data.data.businessUnits || []);
+    } catch (error) {
+      console.error('Error fetching business units:', error);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await api.get('/departments');
+      setDepartments(response.data.data.departments || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
     }
   };
 
@@ -99,6 +132,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
       description: '',
       category: '',
       departments: [],
+      businessUnitId: '',
       icon: 'Globe',
       color: '#3b82f6',
     });
@@ -112,6 +146,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
       description: product.description,
       category: product.category,
       departments: product.departments,
+      businessUnitId: product.businessUnitId?._id || '',
       icon: product.icon,
       color: product.color,
     });
@@ -238,22 +273,31 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
 
       {/* Create/Edit Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-3xl">
-              <h3 className="text-2xl font-bold">
-                {editingProduct ? 'Edit Product' : 'Create New Product'}
-              </h3>
-              <p className="text-blue-100 mt-1">
-                Configure product settings and department access
-              </p>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl my-8">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-3xl flex items-start justify-between">
+              <div>
+                <h3 className="text-2xl font-bold">
+                  {editingProduct ? 'Edit Product' : 'Create New Product'}
+                </h3>
+                <p className="text-blue-100 mt-1">
+                  Configure product settings and department access
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-8 space-y-8">
               {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
                     Product Name *
                   </label>
                   <input
@@ -261,26 +305,26 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full px-5 py-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
                     placeholder="Enter product name"
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
                     Description
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    rows={4}
+                    className="w-full px-5 py-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
                     placeholder="Describe what this product is for"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
                     Category *
                   </label>
                   <input
@@ -288,16 +332,35 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
                     required
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full px-5 py-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
                     placeholder="e.g., Software, Hardware, Service"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
+                    Business Unit *
+                  </label>
+                  <select
+                    required
+                    value={formData.businessUnitId}
+                    onChange={(e) => setFormData({ ...formData, businessUnitId: e.target.value })}
+                    className="w-full px-5 py-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base bg-white"
+                  >
+                    <option value="">Select Business Unit</option>
+                    {businessUnits.map((unit) => (
+                      <option key={unit._id} value={unit._id}>
+                        {unit.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
                     Icon
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-6 lg:grid-cols-9 gap-3">
                     {iconOptions.map((option) => {
                       const IconComp = option.icon;
                       return (
@@ -305,13 +368,13 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
                           key={option.name}
                           type="button"
                           onClick={() => setFormData({ ...formData, icon: option.name })}
-                          className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center ${
+                          className={`p-4 rounded-xl border-2 transition-all flex items-center justify-center hover:shadow-md ${
                             formData.icon === option.name
-                              ? 'border-blue-500 bg-blue-50 text-blue-600'
+                              ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-md'
                               : 'border-slate-200 hover:border-slate-300 text-slate-600'
                           }`}
                         >
-                          <IconComp className="h-5 w-5" />
+                          <IconComp className="h-6 w-6" />
                         </button>
                       );
                     })}
@@ -321,18 +384,18 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
 
               {/* Color Selection */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
                   Theme Color
                 </label>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-4">
                   {colorOptions.map((color) => (
                     <button
                       key={color}
                       type="button"
                       onClick={() => setFormData({ ...formData, color })}
-                      className={`w-10 h-10 rounded-xl border-4 transition-all ${
+                      className={`w-12 h-12 rounded-xl border-4 transition-all hover:shadow-lg ${
                         formData.color === color
-                          ? 'border-slate-300 scale-110 shadow-lg'
+                          ? 'border-slate-400 scale-110 shadow-lg'
                           : 'border-transparent hover:scale-105'
                       }`}
                       style={{ backgroundColor: color }}
@@ -343,56 +406,56 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ searchTerm }) => 
 
               {/* Department Access */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
                   Department Access *
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {departmentOptions.map((dept) => (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {departments.map((dept) => (
                     <label
-                      key={dept}
+                      key={dept._id}
                       className={`relative flex items-center space-x-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        formData.departments.includes(dept)
+                        formData.departments.includes(dept.name)
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-slate-200 hover:border-slate-300 text-slate-600'
                       }`}
                     >
                       <input
                         type="checkbox"
-                        checked={formData.departments.includes(dept)}
+                        checked={formData.departments.includes(dept.name)}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setFormData({
                               ...formData,
-                              departments: [...formData.departments, dept]
+                              departments: [...formData.departments, dept.name]
                             });
                           } else {
                             setFormData({
                               ...formData,
-                              departments: formData.departments.filter(d => d !== dept)
+                              departments: formData.departments.filter(d => d !== dept.name)
                             });
                           }
                         }}
                         className="sr-only"
                       />
                       <Users className="h-4 w-4" />
-                      <span className="text-sm font-medium">{dept}</span>
+                      <span className="text-sm font-medium">{dept.name}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-end space-x-4 pt-6 border-t border-slate-200">
+              <div className="flex items-center justify-end space-x-4 pt-8 border-t border-slate-200 bg-white pb-6">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-6 py-3 text-slate-600 hover:text-slate-800 font-semibold transition-colors"
+                  className="px-8 py-3.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl font-semibold transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-8 py-3.5 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   <span>{editingProduct ? 'Update Product' : 'Create Product'}</span>
                 </button>

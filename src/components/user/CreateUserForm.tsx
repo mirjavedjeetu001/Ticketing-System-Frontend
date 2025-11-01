@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, Shield, Building2, AlertCircle, UserPlus } from 'lucide-react';
 import userService from '../../services/userService';
 import { departmentService } from '../../services/departmentService';
 import { productService } from '../../services/productService';
 
-interface SimpleCreateUserModalProps {
+interface CreateUserFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -23,80 +23,63 @@ interface Product {
   color?: string;
 }
 
-interface FormState {
-  email: string;
-  password: string;
-  confirmPassword: string;
-  firstName: string;
-  lastName: string;
-  role: 'admin' | 'agent' | 'user';
-  departmentId: string;
-  productAccess: string[];
-}
-
-const INITIAL_FORM_STATE: FormState = {
-  email: '',
-  password: '',
-  confirmPassword: '',
-  firstName: '',
-  lastName: '',
-  role: 'user',
-  departmentId: '',
-  productAccess: []
-};
-
-const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, onClose, onSuccess }) => {
+const CreateUserForm: React.FC<CreateUserFormProps> = ({ isOpen, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formData, setFormData] = useState<FormState>(INITIAL_FORM_STATE);
+  const [productAccess, setProductAccess] = useState<string[]>([]);
 
-  const loadDepartments = useCallback(async () => {
-    try {
-      const response = await departmentService.getDepartments();
-      setDepartments(response.data.departments || []);
-    } catch (error) {
-      console.error('Error loading departments:', error);
-    }
-  }, []);
-
-  const loadProducts = useCallback(async () => {
-    try {
-      const response = await productService.getProducts();
-      setProducts(response.data.products || []);
-    } catch (error) {
-      console.error('Error loading products:', error);
-    }
-  }, []);
+  // Simple state for each field
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState<'admin' | 'agent' | 'user'>('user');
+  const [departmentId, setDepartmentId] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       loadDepartments();
       loadProducts();
     }
-  }, [isOpen, loadDepartments, loadProducts]);
+  }, [isOpen]);
+
+  const loadDepartments = async () => {
+    try {
+      const response = await departmentService.getDepartments();
+      setDepartments(response.data.departments || []);
+    } catch (error) {
+      console.error('Error loading departments:', error);
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      const response = await productService.getProducts();
+      setProducts(response.data.products || []);
+    } catch (error) {
+      console.error('Error loading products:', error);
+    }
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.firstName.trim()) {
-      newErrors['firstName'] = 'First name is required';
-    }
-    if (!formData.lastName.trim()) {
-      newErrors['lastName'] = 'Last name is required';
-    }
-    if (!formData.email.trim()) {
+    if (!firstName.trim()) newErrors['firstName'] = 'First name is required';
+    if (!lastName.trim()) newErrors['lastName'] = 'Last name is required';
+    if (!email.trim()) {
       newErrors['email'] = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors['email'] = 'Please enter a valid email address';
     }
-    if (!formData.password) {
+    if (!password) {
       newErrors['password'] = 'Password is required';
-    } else if (formData.password.length < 8) {
+    } else if (password.length < 8) {
       newErrors['password'] = 'Password must be at least 8 characters long';
     }
-    if (formData.password !== formData.confirmPassword) {
+    if (password !== confirmPassword) {
       newErrors['confirmPassword'] = 'Passwords do not match';
     }
 
@@ -105,25 +88,22 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
   };
 
   const handleProductToggle = (productId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      productAccess: prev.productAccess.includes(productId)
-        ? prev.productAccess.filter(id => id !== productId)
-        : [...prev.productAccess, productId]
-    }));
+    setProductAccess(prev =>
+      prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
   };
 
   const resetForm = () => {
-    setFormData({
-      email: '',
-      password: '',
-      confirmPassword: '',
-      firstName: '',
-      lastName: '',
-      role: 'user',
-      departmentId: '',
-      productAccess: []
-    });
+    setFirstName('');
+    setLastName('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setRole('user');
+    setDepartmentId('');
+    setProductAccess([]);
     setErrors({});
   };
 
@@ -139,27 +119,25 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
     setLoading(true);
     try {
       const userData: any = {
-        email: formData.email,
-        password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        role: formData.role,
-        productAccess: formData.productAccess
+        email,
+        password,
+        firstName,
+        lastName,
+        role,
+        productAccess
       };
 
-      if (formData.departmentId) {
-        userData.departmentId = formData.departmentId;
+      if (departmentId) {
+        userData.departmentId = departmentId;
       }
-
-      console.log('Creating user with data:', userData);
 
       await userService.createUser(userData);
       onSuccess();
       handleClose();
     } catch (error: any) {
       console.error('User creation error:', error);
-      setErrors({ 
-        submit: error.response?.data?.message || 'Failed to create user. Please try again.' 
+      setErrors({
+        submit: error.response?.data?.message || 'Failed to create user. Please try again.'
       });
     } finally {
       setLoading(false);
@@ -172,7 +150,7 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-full items-center justify-center p-4">
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleClose} />
-        
+
         <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -204,12 +182,8 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
                 <input
                   type="text"
                   name="firstName"
-                  value={formData.firstName}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData(prev => ({ ...prev, firstName: value }));
-                  }}
-                  autoComplete="given-name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                     errors['firstName'] ? 'border-red-300' : 'border-gray-300'
                   }`}
@@ -231,12 +205,8 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
                 <input
                   type="text"
                   name="lastName"
-                  value={formData.lastName}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData(prev => ({ ...prev, lastName: value }));
-                  }}
-                  autoComplete="family-name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                     errors['lastName'] ? 'border-red-300' : 'border-gray-300'
                   }`}
@@ -261,12 +231,8 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
                 <input
                   type="email"
                   name="email"
-                  value={formData.email}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData(prev => ({ ...prev, email: value }));
-                  }}
-                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                     errors['email'] ? 'border-red-300' : 'border-gray-300'
                   }`}
@@ -293,11 +259,8 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
                   <input
                     type="password"
                     name="password"
-                    value={formData.password}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData(prev => ({ ...prev, password: value }));
-                    }}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                       errors['password'] ? 'border-red-300' : 'border-gray-300'
                     }`}
@@ -322,11 +285,8 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
                   <input
                     type="password"
                     name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData(prev => ({ ...prev, confirmPassword: value }));
-                    }}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                       errors['confirmPassword'] ? 'border-red-300' : 'border-gray-300'
                     }`}
@@ -350,13 +310,13 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
               <div className="relative">
                 <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <select
-                  value={formData.role}
-                  onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as any }))}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as 'admin' | 'agent' | 'user')}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
-                  <option value="user">User - Basic access to assigned tickets</option>
-                  <option value="agent">Agent - Can manage tickets in their department</option>
-                  <option value="admin">Admin - Full system access and management</option>
+                  <option value="user">User</option>
+                  <option value="agent">Agent</option>
+                  <option value="admin">Admin</option>
                 </select>
               </div>
             </div>
@@ -370,12 +330,12 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <select
-                    value={formData.departmentId}
-                    onChange={(e) => setFormData(prev => ({ ...prev, departmentId: e.target.value }))}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white"
+                    value={departmentId}
+                    onChange={(e) => setDepartmentId(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   >
-                    <option value="">Select a department...</option>
-                    {departments.map(dept => (
+                    <option value="">No Department</option>
+                    {departments.map((dept) => (
                       <option key={dept._id} value={dept._id}>
                         {dept.name}
                       </option>
@@ -391,30 +351,23 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Product Access (Optional)
                 </label>
-                <p className="text-sm text-gray-500 mb-3">
-                  Select which products this user can create tickets for
-                </p>
-                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                  {products.map(product => (
-                    <label
-                      key={product._id}
-                      className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.productAccess.includes(product._id)}
-                        onChange={() => handleProductToggle(product._id)}
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: product.color }}
+                <div className="border border-gray-300 rounded-lg p-4 max-h-48 overflow-y-auto">
+                  <div className="space-y-2">
+                    {products.map((product) => (
+                      <label
+                        key={product._id}
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={productAccess.includes(product._id)}
+                          onChange={() => handleProductToggle(product._id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="text-sm">{product.name}</span>
-                      </div>
-                    </label>
-                  ))}
+                        <span className="text-sm text-gray-700">{product.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -461,4 +414,4 @@ const SimpleCreateUserModal: React.FC<SimpleCreateUserModalProps> = ({ isOpen, o
   );
 };
 
-export default SimpleCreateUserModal;
+export default CreateUserForm;

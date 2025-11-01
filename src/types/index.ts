@@ -4,9 +4,30 @@ export interface User {
   firstName: string;
   lastName: string;
   fullName: string;
-  role: 'admin' | 'agent' | 'user';
+  phone?: string;
+  avatar?: string;
+  role: 'super_admin' | 'admin' | 'business_unit_head' | 'department_head' | 'team_lead' | 'agent' | 'user';
   department?: string;
+  departmentId?: string;
+  businessUnitId?: string;
+  teamId?: string;
+  companyId?: string;
+  permissions?: {
+    canCreateTickets: boolean;
+    canViewAllTickets: boolean;
+    canAssignTickets: boolean;
+    canCloseTickets: boolean;
+    canDeleteTickets: boolean;
+    canManageUsers: boolean;
+    canManageTeams: boolean;
+    canManageDepartments: boolean;
+    canManageBusinessUnits: boolean;
+    canManageCompany: boolean;
+    canViewReports: boolean;
+    canExportData: boolean;
+  };
   isActive: boolean;
+  isEmailVerified?: boolean;
   lastLogin?: string;
   createdAt: string;
   updatedAt: string;
@@ -94,7 +115,7 @@ export interface RegisterData {
   password: string;
   firstName: string;
   lastName: string;
-  role?: 'admin' | 'agent' | 'user';
+  role?: 'super_admin' | 'admin' | 'business_unit_head' | 'department_head' | 'team_lead' | 'agent' | 'user';
   department?: string;
 }
 

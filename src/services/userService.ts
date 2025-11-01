@@ -6,15 +6,34 @@ export interface User {
   firstName: string;
   lastName: string;
   fullName: string;
-  role: 'admin' | 'agent' | 'user';
+  phone?: string;
+  avatar?: string;
+  role: 'super_admin' | 'admin' | 'business_unit_head' | 'department_head' | 'team_lead' | 'agent' | 'user';
   department?: string;
   departmentId?: string;
+  businessUnitId?: string;
+  teamId?: string;
+  companyId?: string;
   productAccess?: string[];
+  permissions: {
+    canCreateTickets: boolean;
+    canViewAllTickets: boolean;
+    canAssignTickets: boolean;
+    canCloseTickets: boolean;
+    canDeleteTickets: boolean;
+    canManageUsers: boolean;
+    canManageTeams: boolean;
+    canManageDepartments: boolean;
+    canManageBusinessUnits: boolean;
+    canManageCompany: boolean;
+    canViewReports: boolean;
+    canExportData: boolean;
+  };
   isActive: boolean;
+  isEmailVerified: boolean;
   lastLogin?: string;
   createdAt: string;
   updatedAt: string;
-  phone?: string;
   jobTitle?: string;
   location?: string;
   bio?: string;
@@ -28,19 +47,29 @@ export interface CreateUserData {
   password: string;
   firstName: string;
   lastName: string;
-  role?: 'admin' | 'agent' | 'user';
+  phone?: string;
+  role?: User['role'];
   department?: string;
   departmentId?: string;
+  businessUnitId?: string;
+  teamId?: string;
+  companyId?: string;
   productAccess?: string[];
+  permissions?: Partial<User['permissions']>;
 }
 
 export interface UpdateUserData {
   firstName?: string;
   lastName?: string;
-  role?: 'admin' | 'agent' | 'user';
+  phone?: string;
+  role?: User['role'];
   department?: string;
   departmentId?: string;
+  businessUnitId?: string;
+  teamId?: string;
+  companyId?: string;
   productAccess?: string[];
+  permissions?: Partial<User['permissions']>;
   isActive?: boolean;
 }
 
@@ -120,6 +149,48 @@ class UserService {
   // Get users with access to specific product
   async getUsersByProduct(productId: string): Promise<UserListResponse> {
     const response = await api.get(`/users/product/${productId}`);
+    return response.data;
+  }
+
+  // Update user role
+  async updateUserRole(id: string, role: User['role']): Promise<UserResponse> {
+    const response = await api.patch(`/users/${id}/role`, { role });
+    return response.data;
+  }
+
+  // Update user permissions
+  async updateUserPermissions(id: string, permissions: Partial<User['permissions']>): Promise<UserResponse> {
+    const response = await api.patch(`/users/${id}/permissions`, { permissions });
+    return response.data;
+  }
+
+  // Toggle user active status
+  async toggleUserStatus(id: string): Promise<UserResponse> {
+    const response = await api.patch(`/users/${id}/toggle-status`);
+    return response.data;
+  }
+
+  // Assign company
+  async assignCompany(id: string, companyId: string): Promise<UserResponse> {
+    const response = await api.patch(`/users/${id}/assign/company`, { companyId });
+    return response.data;
+  }
+
+  // Assign business unit
+  async assignBusinessUnit(id: string, businessUnitId: string): Promise<UserResponse> {
+    const response = await api.patch(`/users/${id}/assign/business-unit`, { businessUnitId });
+    return response.data;
+  }
+
+  // Assign department
+  async assignDepartment(id: string, departmentId: string): Promise<UserResponse> {
+    const response = await api.patch(`/users/${id}/assign/department`, { departmentId });
+    return response.data;
+  }
+
+  // Assign team
+  async assignTeam(id: string, teamId: string): Promise<UserResponse> {
+    const response = await api.patch(`/users/${id}/assign/team`, { teamId });
     return response.data;
   }
 }

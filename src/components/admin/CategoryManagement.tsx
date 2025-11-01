@@ -59,7 +59,6 @@ const CategoryManagement: React.FC<CategoryManagementProps> = ({ searchTerm }) =
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingFeatures, setLoadingFeatures] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<IssueCategory | null>(null);
   const [formData, setFormData] = useState({
@@ -108,14 +107,8 @@ const CategoryManagement: React.FC<CategoryManagementProps> = ({ searchTerm }) =
       const response = await api.get('/categories');
       const categories = response.data?.data?.categories || [];
       setCategories(categories);
-      setError(null);
     } catch (error: any) {
       console.error('Error fetching categories:', error);
-      if (error.response?.status === 429) {
-        setError('Too many requests. Please wait a moment and try again.');
-      } else {
-        setError('Failed to load categories');
-      }
       setCategories([]);
     } finally {
       setLoading(false);

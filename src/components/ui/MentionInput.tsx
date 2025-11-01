@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Users, Mail, AtSign } from 'lucide-react';
-import api from '../../api/client';
+import { loadUsers, loadDepartments } from '../../hooks/useGlobalData';
 
 interface MentionSuggestion {
   id: string;
@@ -41,29 +41,35 @@ const MentionInput: React.FC<MentionInputProps> = ({
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const hasLoadedData = useRef(false);
 
-  // Load users and departments on component mount
+  // Load users and departments ONLY ONCE when user starts typing @
   useEffect(() => {
-    loadUsersAndDepartments();
-  }, []);
+    // Only load data when user actually needs it (when typing @)
+    if (value.includes('@') && !hasLoadedData.current) {
+      loadUsersAndDepartments();
+    }
+  }, [value]);
 
   const loadUsersAndDepartments = async () => {
+    // Prevent duplicate calls
+    if (hasLoadedData.current || loading) return;
+    
     try {
       setLoading(true);
+      hasLoadedData.current = true;
       
-      // Load users and departments in parallel
-      const [usersResponse, deptResponse] = await Promise.all([
-        api.get('/users?limit=100'),
-        api.get('/departments')
+      // Use global cache to load users and departments
+      const [users, departments] = await Promise.all([
+        loadUsers(),
+        loadDepartments()
       ]);
-      
-      const users = usersResponse.data.data?.users || usersResponse.data.users || [];
-      const departments = deptResponse.data.data?.departments || deptResponse.data.departments || [];
       
       setAllUsers(users);
       setAllDepartments(departments);
     } catch (error) {
       console.error('Error loading users and departments:', error);
+      hasLoadedData.current = false; // Allow retry on error
     } finally {
       setLoading(false);
     }

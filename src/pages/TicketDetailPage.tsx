@@ -23,11 +23,13 @@ import {
   FileText,
   Paperclip,
   Download,
-  Star
+  Star,
+  Trash2
 } from 'lucide-react';
 import api from '../api/client';
 import MentionInput from '../components/ui/MentionInput';
 import SLATimer from '../components/SLATimer';
+import toast from 'react-hot-toast';
 
 interface Comment {
   _id: string;
@@ -166,6 +168,8 @@ const TicketDetailPage: React.FC = () => {
   const [newComment, setNewComment] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const [sendingComment, setSendingComment] = useState(false);
+  const [commentAttachments, setCommentAttachments] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState('details');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -177,6 +181,20 @@ const TicketDetailPage: React.FC = () => {
   const [forwardType, setForwardType] = useState<'user' | 'department'>('user');
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [departments] = useState(['IT', 'HR', 'Finance', 'Operations', 'Support']);
+  const [previewAttachment, setPreviewAttachment] = useState<{
+    filename: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+  } | null>(null);
+
+  // Helper function to get upload URL (fetch from MongoDB via API)
+  const getUploadUrl = (filename: string): string => {
+    const baseUrl = import.meta.env['VITE_API_BASE_URL'] || 'http://localhost:5000/api';
+    const fullUrl = `${baseUrl}/tickets/attachments/${filename}`;
+    console.log('🔗 Upload URL (from MongoDB):', { filename, baseUrl, fullUrl });
+    return fullUrl;
+  };
 
   const statusConfig = {
     open: { color: 'text-blue-600 bg-blue-100', icon: Eye, label: 'Open' },
@@ -185,11 +203,17 @@ const TicketDetailPage: React.FC = () => {
     closed: { color: 'text-slate-600 bg-slate-100', icon: XCircle, label: 'Closed' },
   };
 
+  // Add ref to track if data has been fetched
+  const hasFetchedData = useRef(false);
+
   useEffect(() => {
     console.log('Ticket ID from URL params:', id);
     console.log('ID type:', typeof id);
     console.log('ID length:', id?.length);
-    if (id) {
+    
+    // Only fetch once when component mounts with valid ID
+    if (id && !hasFetchedData.current) {
+      hasFetchedData.current = true;
       fetchTicket();
       fetchUsers();
     }
@@ -210,6 +234,8 @@ const TicketDetailPage: React.FC = () => {
       console.log('Fetching ticket with ID:', id);
       const response = await api.get(`/tickets/${id}`);
       console.log('Ticket fetch response:', response.data);
+      console.log('Ticket attachments:', response.data.data?.ticket?.attachments);
+      console.log('Attachments length:', response.data.data?.ticket?.attachments?.length);
       setTicket(response.data.data.ticket);
     } catch (error: any) {
       console.error('Error fetching ticket:', error);
@@ -234,21 +260,51 @@ const TicketDetailPage: React.FC = () => {
     commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setCommentAttachments(prev => [...prev, ...files]);
+  };
+
+  const removeAttachment = (index: number) => {
+    setCommentAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSendComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    if (!newComment.trim() && commentAttachments.length === 0) return;
 
     setSendingComment(true);
     try {
       const token = localStorage.getItem('token');
       console.log('Token available for comment:', !!token);
       console.log('Adding comment to ticket:', id);
-      console.log('Comment data:', { content: newComment, isInternal });
+      console.log('Comment data:', { content: newComment, isInternal, attachments: commentAttachments.length });
       
-      const response = await api.post(`/tickets/${id}/comments`, {
-        content: newComment,
-        isInternal,
-      });
+      // Use FormData if there are attachments
+      let response;
+      if (commentAttachments.length > 0) {
+        const formData = new FormData();
+        formData.append('content', newComment);
+        formData.append('isInternal', String(isInternal));
+        
+        console.log('📎 Attaching files:', commentAttachments.length);
+        commentAttachments.forEach((file, index) => {
+          console.log(`📎 File ${index + 1}:`, file.name, file.size, file.type);
+          formData.append('attachments', file);
+        });
+        
+        // Don't set Content-Type header - let browser set it with proper boundary
+        response = await api.post(`/tickets/${id}/comments`, formData);
+      } else {
+        response = await api.post(`/tickets/${id}/comments`, {
+          content: newComment,
+          isInternal,
+        });
+      }
       
       // Real-time update: Add comment immediately to UI
       const newCommentData = response.data?.data || response.data;
@@ -280,14 +336,12 @@ const TicketDetailPage: React.FC = () => {
         setTimeout(() => {
           scrollToBottom();
         }, 100);
-      } else {
-        // Fallback: refresh ticket data if real-time update fails
-        console.log('Real-time update failed, refreshing ticket data...');
-        await fetchTicket();
       }
+      // Removed fallback fetchTicket() to prevent unnecessary API call
       
       setNewComment('');
       setIsInternal(false);
+      setCommentAttachments([]);
     } catch (error: any) {
       console.error('Error sending comment:', error);
       console.error('Error response:', error.response?.data);
@@ -372,8 +426,14 @@ const TicketDetailPage: React.FC = () => {
         updateData.assignee = null;
       }
 
-      await api.put(`/tickets/${id}`, updateData);
-      await fetchTicket(); // Refresh ticket data
+      const response = await api.put(`/tickets/${id}`, updateData);
+      
+      // Optimistic update instead of fetching
+      if (response.data && ticket) {
+        const updatedTicket = response.data.data?.ticket || response.data;
+        setTicket(updatedTicket);
+      }
+      
       setShowForwardModal(false);
       setForwardTo('');
     } catch (error) {
@@ -383,17 +443,19 @@ const TicketDetailPage: React.FC = () => {
 
   // Permission checks
   const canEditDescription = () => {
-    return ticket && user && (
+    return ticket && user && ticket.createdBy && (
       user.id === ticket.createdBy.id || 
       user.role === 'admin' ||
+      user.role === 'super_admin' ||
       user.role === 'agent'
     );
   };
 
   const canEditTitle = () => {
-    return ticket && user && (
+    return ticket && user && ticket.createdBy && (
       user.id === ticket.createdBy.id || 
       user.role === 'admin' ||
+      user.role === 'super_admin' ||
       user.role === 'agent'
     );
   };
@@ -401,9 +463,38 @@ const TicketDetailPage: React.FC = () => {
   const canForward = () => {
     return ticket && user && (
       user.role === 'admin' ||
+      user.role === 'super_admin' ||
       user.role === 'agent' ||
       (ticket.assignee && user.id === ticket.assignee.id)
     );
+  };
+
+  const canDelete = () => {
+    return ticket && user && (
+      user.role === 'super_admin' ||
+      user.role === 'admin' ||
+      (user.permissions?.canDeleteTickets) ||
+      (ticket.createdBy && user.id === ticket.createdBy.id)
+    );
+  };
+
+  const handleDeleteTicket = async () => {
+    if (!ticket || !id) return;
+    
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this ticket? This action cannot be undone.'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      await api.delete(`/tickets/${id}`);
+      toast.success('Ticket deleted successfully');
+      navigate('/tickets');
+    } catch (error: any) {
+      console.error('Error deleting ticket:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete ticket');
+    }
   };
 
   if (loading) {
@@ -514,6 +605,18 @@ const TicketDetailPage: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-3">
+              {/* Delete Button */}
+              {canDelete() && (
+                <button
+                  onClick={handleDeleteTicket}
+                  className="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-semibold transition-all"
+                  title="Delete Ticket"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete</span>
+                </button>
+              )}
+              
               {/* Forward Button */}
               {canForward() && (
                 <button
@@ -559,7 +662,7 @@ const TicketDetailPage: React.FC = () => {
                 {ticket.status === 'resolved' && (
                   <>
                     {/* Only creators and admins can close resolved tickets */}
-                    {user && (user.id === ticket.createdBy.id || user.role === 'admin') ? (
+                    {user && ticket.createdBy && (user.id === ticket.createdBy.id || user.role === 'admin' || user.role === 'super_admin') ? (
                       <button
                         onClick={() => updateTicketStatus('closed')}
                         className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-semibold transition-all"
@@ -611,15 +714,15 @@ const TicketDetailPage: React.FC = () => {
                 Details
               </button>
               <button
-                onClick={() => setActiveTab('comments')}
+                onClick={() => setActiveTab('attachments')}
                 className={`px-6 py-4 font-semibold transition-all ${
-                  activeTab === 'comments'
+                  activeTab === 'attachments'
                     ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                     : 'text-slate-600 hover:text-slate-800'
                 }`}
               >
-                <MessageCircle className="inline h-4 w-4 mr-2" />
-                Comments ({ticket.comments.length})
+                <Paperclip className="inline h-4 w-4 mr-2" />
+                Attachments ({ticket.attachments?.length || 0})
               </button>
               <button
                 onClick={() => setActiveTab('activity')}
@@ -694,18 +797,20 @@ const TicketDetailPage: React.FC = () => {
                     )}
                   </div>
                   
-                  <div>
-                    <label className="text-sm font-semibold text-slate-700 mb-2 block">Created By</label>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                        {ticket.createdBy.firstName[0]}{ticket.createdBy.lastName[0]}
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-800">{ticket.createdBy.fullName}</p>
-                        <p className="text-xs text-slate-500 capitalize">{ticket.createdBy.role}</p>
+                  {ticket.createdBy && (
+                    <div>
+                      <label className="text-sm font-semibold text-slate-700 mb-2 block">Created By</label>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                          {ticket.createdBy.firstName?.[0]}{ticket.createdBy.lastName?.[0]}
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-800">{ticket.createdBy.fullName}</p>
+                          <p className="text-xs text-slate-500 capitalize">{ticket.createdBy.role}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Assigned By Section */}
                   {ticket.assignedBy && (
@@ -769,7 +874,7 @@ const TicketDetailPage: React.FC = () => {
                       <label className="text-sm font-semibold text-slate-700 mb-2 block">Assigned To</label>
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-teal-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                          {ticket.assignee.firstName[0]}{ticket.assignee.lastName[0]}
+                          {ticket.assignee.firstName?.[0]}{ticket.assignee.lastName?.[0]}
                         </div>
                         <div>
                           <p className="font-medium text-slate-800">{ticket.assignee.fullName}</p>
@@ -891,84 +996,76 @@ const TicketDetailPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Attachments */}
-              {ticket.attachments.length > 0 && (
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 mb-3 block">Attachments</label>
-                  <div className="space-y-3">
-                    {ticket.attachments.map((attachment, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white rounded-xl border border-slate-200/60"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-blue-100 rounded-lg">
-                            <Paperclip className="h-4 w-4 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-slate-800">{attachment.originalName}</p>
-                            <p className="text-xs text-slate-500">
-                              {(attachment.size / 1024 / 1024).toFixed(2)} MB • {new Date(attachment.uploadedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <button className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                          <Download className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
                 </>
               )}
 
-              {/* Comments Tab Content */}
-              {activeTab === 'comments' && (
+              {/* Attachments Tab Content */}
+              {activeTab === 'attachments' && (
                 <div className="space-y-6">
                   <h3 className="text-xl font-bold text-slate-800 flex items-center">
-                    <MessageCircle className="h-6 w-6 mr-2 text-blue-600" />
-                    Comments ({ticket.comments.length})
+                    <Paperclip className="h-6 w-6 mr-2 text-blue-600" />
+                    All Attachments ({ticket.attachments?.length || 0})
                   </h3>
-                  {ticket.comments.length === 0 ? (
+                  {!ticket.attachments || ticket.attachments.length === 0 ? (
                     <div className="text-center py-12 text-slate-500">
-                      <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No comments yet.</p>
+                      <Paperclip className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-semibold text-lg mb-2">No attachments yet</p>
+                      <p className="text-sm text-slate-400 mt-2">Upload files when creating tickets or adding comments to see them here.</p>
+                      <div className="mt-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 max-w-md mx-auto">
+                        <p className="text-sm text-blue-700 mb-3">
+                          <strong>💡 How to add attachments:</strong>
+                        </p>
+                        <ul className="text-xs text-left text-blue-600 space-y-2">
+                          <li>• Use the 📎 button in the comment box below</li>
+                          <li>• Include files when creating a new ticket</li>
+                          <li>• Supports images, PDFs, documents, and archives (max 10MB)</li>
+                        </ul>
+                      </div>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      {ticket.comments.map((comment) => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {ticket.attachments.map((attachment, index) => (
                         <div
-                          key={comment._id}
-                          className={`flex space-x-4 ${comment.isInternal ? 'opacity-75' : ''}`}
+                          key={index}
+                          className="flex items-center justify-between p-5 bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-lg transition-all group cursor-pointer"
+                          onClick={() => setPreviewAttachment(attachment)}
                         >
-                          <div className="flex-shrink-0">
-                            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                              {comment.author?.firstName?.[0] || 'U'}{comment.author?.lastName?.[0] || 'N'}
+                          <div className="flex items-center space-x-4 flex-1 min-w-0">
+                            <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
+                              <Paperclip className="h-5 w-5 text-white" />
                             </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="bg-gradient-to-r from-slate-50 to-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
-                              <div className="flex items-start justify-between mb-2">
-                                <div>
-                                  <p className="font-semibold text-slate-800">{comment.author?.fullName || comment.author?.firstName + ' ' + comment.author?.lastName || 'Unknown User'}</p>
-                                  <p className="text-xs text-slate-500 capitalize flex items-center space-x-2">
-                                    <span>{comment.author?.role || 'user'}</span>
-                                    {comment.isInternal && (
-                                      <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
-                                        Internal
-                                      </span>
-                                    )}
-                                  </p>
-                                </div>
-                                <time className="text-xs text-slate-400">
-                                  {new Date(comment.createdAt).toLocaleString()}
-                                </time>
-                              </div>
-                              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                                {comment.content}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-800 truncate">{attachment.originalName}</p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {(attachment.size / 1024).toFixed(2)} KB • {attachment.mimeType.split('/')[1]?.toUpperCase() || 'FILE'}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {new Date(attachment.uploadedAt).toLocaleDateString()} at {new Date(attachment.uploadedAt).toLocaleTimeString()}
                               </p>
                             </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewAttachment(attachment);
+                              }}
+                              className="p-3 text-slate-500 hover:text-blue-600 hover:bg-blue-100 rounded-xl transition-all"
+                              title="Preview attachment"
+                            >
+                              <Eye className="h-5 w-5" />
+                            </button>
+                            <a
+                              href={getUploadUrl(attachment.filename)}
+                              download={attachment.originalName}
+                              onClick={(e) => e.stopPropagation()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-3 text-slate-500 hover:text-green-600 hover:bg-green-100 rounded-xl transition-all inline-flex items-center"
+                              title="Download attachment"
+                            >
+                              <Download className="h-5 w-5" />
+                            </a>
                           </div>
                         </div>
                       ))}
@@ -1132,9 +1229,41 @@ const TicketDetailPage: React.FC = () => {
                     <span className="text-xs font-medium text-orange-700">Internal Only</span>
                   </label>
                 </div>
+
+                {/* Attachment Preview */}
+                {commentAttachments.length > 0 && (
+                  <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-700">
+                        Attachments ({commentAttachments.length})
+                      </span>
+                    </div>
+                    {commentAttachments.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200"
+                      >
+                        <div className="flex items-center space-x-2 flex-1 min-w-0">
+                          <Paperclip className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                          <span className="text-sm text-slate-700 truncate">{file.name}</span>
+                          <span className="text-xs text-slate-400 flex-shrink-0">
+                            ({(file.size / 1024).toFixed(1)} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          className="ml-2 p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Smart Chat Input with Mentions */}
-                <div className="flex items-end space-x-3">
+                <div className="flex items-end space-x-2">
                   <div className="flex-1">
                     <MentionInput
                       value={newComment}
@@ -1145,17 +1274,38 @@ const TicketDetailPage: React.FC = () => {
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          if (newComment.trim() && !sendingComment) {
+                          if ((newComment.trim() || commentAttachments.length > 0) && !sendingComment) {
                             handleSendComment(e as any);
                           }
                         }
                       }}
                     />
                   </div>
+
+                  {/* Hidden File Input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.txt,.zip"
+                  />
                   
+                  {/* Attachment Button */}
+                  <button
+                    type="button"
+                    onClick={triggerFileInput}
+                    className="flex items-center justify-center w-12 h-12 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-all duration-200 shadow-sm hover:shadow-md"
+                    title="Attach files"
+                  >
+                    <Paperclip className="h-5 w-5" />
+                  </button>
+                  
+                  {/* Send Button */}
                   <button
                     type="submit"
-                    disabled={!newComment.trim() || sendingComment}
+                    disabled={(!newComment.trim() && commentAttachments.length === 0) || sendingComment}
                     className="flex items-center justify-center w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-400"
                   >
                     {sendingComment ? (
@@ -1167,7 +1317,7 @@ const TicketDetailPage: React.FC = () => {
                 </div>
                 
                 <p className="text-xs text-slate-400 text-center">
-                  Press Enter to send, Shift+Enter for new line
+                  Press Enter to send, Shift+Enter for new line • Click <Paperclip className="inline h-3 w-3" /> to attach files
                 </p>
               </div>
             </form>
@@ -1247,6 +1397,152 @@ const TicketDetailPage: React.FC = () => {
               >
                 Forward Ticket
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attachment Preview Modal */}
+      {previewAttachment && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setPreviewAttachment(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+                  <Paperclip className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">{previewAttachment.originalName}</h3>
+                  <p className="text-sm text-slate-500">
+                    {(previewAttachment.size / 1024).toFixed(2)} KB • {previewAttachment.mimeType}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={getUploadUrl(previewAttachment.filename)}
+                  download={previewAttachment.originalName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 text-slate-600 hover:text-green-600 hover:bg-green-100 rounded-lg transition-all"
+                  title="Download"
+                >
+                  <Download className="h-5 w-5" />
+                </a>
+                <button
+                  onClick={() => setPreviewAttachment(null)}
+                  className="p-2 text-slate-600 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all"
+                  title="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-auto max-h-[calc(90vh-120px)]">
+              {previewAttachment.mimeType.startsWith('image/') ? (
+                <div className="flex items-center justify-center bg-slate-50 rounded-xl p-4">
+                  <img
+                    src={getUploadUrl(previewAttachment.filename)}
+                    alt={previewAttachment.originalName}
+                    className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                  />
+                </div>
+              ) : previewAttachment.mimeType === 'application/pdf' ? (
+                <div className="space-y-4">
+                  {/* PDF Viewer - Using iframe with proper auth */}
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <iframe
+                      src={`${getUploadUrl(previewAttachment.filename)}#toolbar=1&navpanes=1&scrollbar=1&view=FitH`}
+                      className="w-full h-[65vh] rounded-lg border-0"
+                      title={previewAttachment.originalName}
+                    />
+                  </div>
+                  {/* Action buttons */}
+                  <div className="flex gap-3 justify-center">
+                    <a
+                      href={getUploadUrl(previewAttachment.filename)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2"
+                    >
+                      <Eye className="h-5 w-5" />
+                      Open in New Tab
+                    </a>
+                    <a
+                      href={getUploadUrl(previewAttachment.filename)}
+                      download={previewAttachment.originalName}
+                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl hover:from-green-700 hover:to-teal-700 transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2"
+                    >
+                      <Download className="h-5 w-5" />
+                      Download PDF
+                    </a>
+                  </div>
+                </div>
+              ) : previewAttachment.mimeType.startsWith('text/') ? (
+                <div className="bg-slate-50 rounded-xl p-6">
+                  <iframe
+                    src={getUploadUrl(previewAttachment.filename)}
+                    className="w-full h-[60vh] border-0 rounded-lg"
+                    title={previewAttachment.originalName}
+                  />
+                </div>
+              ) : previewAttachment.mimeType.startsWith('video/') ? (
+                <div className="flex items-center justify-center bg-slate-900 rounded-xl p-4">
+                  <video
+                    src={getUploadUrl(previewAttachment.filename)}
+                    controls
+                    className="max-w-full max-h-[70vh] rounded-lg"
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+              ) : previewAttachment.mimeType.startsWith('audio/') ? (
+                <div className="flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-12">
+                  <div className="mb-6">
+                    <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                      <Paperclip className="h-12 w-12 text-white" />
+                    </div>
+                  </div>
+                  <audio
+                    src={getUploadUrl(previewAttachment.filename)}
+                    controls
+                    className="w-full max-w-md"
+                  >
+                    Your browser does not support the audio tag.
+                  </audio>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-20 h-20 bg-gradient-to-br from-slate-200 to-slate-300 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                    <FileText className="h-10 w-10 text-slate-600" />
+                  </div>
+                  <h4 className="text-xl font-bold text-slate-800 mb-2">Preview Not Available</h4>
+                  <p className="text-slate-600 mb-6 max-w-md">
+                    This file type cannot be previewed in the browser.
+                    <br />
+                    <span className="text-sm text-slate-500">({previewAttachment.mimeType})</span>
+                  </p>
+                  <a
+                    href={getUploadUrl(previewAttachment.filename)}
+                    download={previewAttachment.originalName}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2"
+                  >
+                    <Download className="h-5 w-5" />
+                    Download File
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>

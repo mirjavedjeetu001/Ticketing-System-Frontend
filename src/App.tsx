@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
@@ -10,7 +9,6 @@ import DashboardPage from './pages/DashboardPage';
 import TicketsPage from './pages/TicketsPage';
 import TicketDetailPage from './pages/TicketDetailPage';
 import CreateTicketPage from './pages/CreateTicketPage';
-import UsersPage from './pages/UsersPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import AdminProductsPage from './pages/admin/AdminProductsPage';
@@ -19,6 +17,10 @@ import AdminCategoriesPage from './pages/admin/AdminCategoriesPage';
 import AdminSeverityPage from './pages/admin/AdminSeverityPage';
 import AdminDepartmentsPage from './pages/admin/AdminDepartmentsPage';
 import AdminSystemSettingsPage from './pages/admin/AdminSystemSettingsPage';
+import AdminCompaniesPage from './pages/admin/AdminCompaniesPage';
+import AdminBusinessUnitsPage from './pages/admin/AdminBusinessUnitsPage';
+import AdminTeamsPage from './pages/admin/AdminTeamsPage';
+import AdminUsersPage from './pages/admin/AdminUsersPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Create a client
@@ -80,7 +82,7 @@ function App() {
                         <Route path="/tickets" element={<TicketsPage />} />
                         <Route path="/tickets/new" element={<CreateTicketPage />} />
                         <Route path="/tickets/:id" element={<TicketDetailPage />} />
-                        <Route path="/users" element={<UsersPage />} />
+                        <Route path="/admin/users" element={<AdminUsersPage />} />
                         <Route path="/profile" element={<ProfilePage />} />
                         <Route path="/admin" element={<AdminPage />} />
                         <Route path="/admin/products" element={<AdminProductsPage />} />
@@ -88,6 +90,9 @@ function App() {
                         <Route path="/admin/categories" element={<AdminCategoriesPage />} />
                         <Route path="/admin/severity" element={<AdminSeverityPage />} />
                         <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
+                        <Route path="/admin/companies" element={<AdminCompaniesPage />} />
+                        <Route path="/admin/business-units" element={<AdminBusinessUnitsPage />} />
+                        <Route path="/admin/teams" element={<AdminTeamsPage />} />
                         <Route path="/admin/system-settings" element={<AdminSystemSettingsPage />} />
                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                       </Routes>

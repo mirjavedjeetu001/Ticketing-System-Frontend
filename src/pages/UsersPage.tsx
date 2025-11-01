@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import userService, { User, CreateUserData, UpdateUserData } from '../services/userService';
+import userService, { User } from '../services/userService';
 import { departmentService } from '../services/departmentService';
-import SimpleCreateUserModal from '../components/user/SimpleCreateUserModal';
+import NewCreateUserModal from '../components/user/NewCreateUserModal';
 import UserProfileModal from '../components/user/UserProfileModal';
 import {
   UserPlus,
@@ -19,9 +19,7 @@ import {
   Mail,
   Calendar,
   Download,
-  MoreVertical,
-  Trash,
-  UserX
+  Trash
 } from 'lucide-react';
 
 const UsersPage: React.FC = () => {
@@ -36,12 +34,11 @@ const UsersPage: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [showBulkActions, setShowBulkActions] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Only show this page to admins
-  if (user?.role !== 'admin') {
+  // Only show this page to admins and super_admins
+  if (user?.role !== 'admin' && user?.role !== 'super_admin' && !user?.permissions?.canManageUsers) {
     return (
       <div className="text-center py-12">
         <Shield className="h-16 w-16 text-red-500 mx-auto mb-4" />
@@ -51,12 +48,7 @@ const UsersPage: React.FC = () => {
     );
   }
 
-  useEffect(() => {
-    loadUsers();
-    loadDepartments();
-  }, [currentPage, searchTerm, selectedRole, selectedDepartment]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const params: any = {
@@ -77,7 +69,12 @@ const UsersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, selectedRole, selectedDepartment]);
+
+  useEffect(() => {
+    loadUsers();
+    loadDepartments();
+  }, [loadUsers]);
 
   const loadDepartments = async () => {
     try {
@@ -92,8 +89,12 @@ const UsersPage: React.FC = () => {
 
   const getRoleIcon = (role: string) => {
     switch (role) {
+      case 'super_admin': return <Crown className="h-4 w-4 text-red-600" />;
       case 'admin': return <Crown className="h-4 w-4 text-purple-600" />;
-      case 'agent': return <ShieldCheck className="h-4 w-4 text-blue-600" />;
+      case 'business_unit_head': return <Shield className="h-4 w-4 text-indigo-600" />;
+      case 'department_head': return <ShieldCheck className="h-4 w-4 text-blue-600" />;
+      case 'team_lead': return <ShieldCheck className="h-4 w-4 text-cyan-600" />;
+      case 'agent': return <ShieldCheck className="h-4 w-4 text-teal-600" />;
       case 'user': return <Users className="h-4 w-4 text-green-600" />;
       default: return <Users className="h-4 w-4 text-gray-600" />;
     }
@@ -101,8 +102,12 @@ const UsersPage: React.FC = () => {
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
+      case 'super_admin': return 'bg-red-100 text-red-800 border border-red-200';
       case 'admin': return 'bg-purple-100 text-purple-800';
-      case 'agent': return 'bg-blue-100 text-blue-800';
+      case 'business_unit_head': return 'bg-indigo-100 text-indigo-800';
+      case 'department_head': return 'bg-blue-100 text-blue-800';
+      case 'team_lead': return 'bg-cyan-100 text-cyan-800';
+      case 'agent': return 'bg-teal-100 text-teal-800';
       case 'user': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -221,7 +226,11 @@ const UsersPage: React.FC = () => {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Roles</option>
+            <option value="super_admin">Super Admin</option>
             <option value="admin">Admin</option>
+            <option value="business_unit_head">Business Unit Head</option>
+            <option value="department_head">Department Head</option>
+            <option value="team_lead">Team Lead</option>
             <option value="agent">Agent</option>
             <option value="user">User</option>
           </select>
@@ -455,7 +464,7 @@ const UsersPage: React.FC = () => {
       </div>
 
       {/* Create User Modal */}
-            <SimpleCreateUserModal
+      <NewCreateUserModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={loadUsers}

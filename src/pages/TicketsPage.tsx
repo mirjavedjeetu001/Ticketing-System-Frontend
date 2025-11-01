@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Clock, User, AlertCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Clock, User, AlertCircle, Trash2 } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 interface Ticket {
   _id: string;
@@ -66,26 +68,132 @@ interface Ticket {
 }
 
 const TicketsPage: React.FC = () => {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchTickets();
-  }, []);
+  }, [searchParams]);
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/tickets');
+      
+      // Build query params from URL
+      const params: any = {};
+      const status = searchParams.get('status');
+      const resolvedToday = searchParams.get('resolvedToday');
+      const slaBreached = searchParams.get('slaBreached');
+      const withinSla = searchParams.get('withinSla');
+      
+      if (status) {
+        params.status = status;
+      }
+      
+      if (resolvedToday === 'true') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        params.resolvedDateFrom = today.toISOString();
+      }
+      
+      // For SLA filters, we'll need to fetch all and filter client-side
+      // since backend doesn't have these filters
+      
+      const response = await api.get('/tickets', { params });
       if (response.data.success) {
-        setTickets(response.data.data.tickets || []);
+        let filteredTickets = response.data.data.tickets || [];
+        
+        // Apply SLA filters client-side
+        if (slaBreached === 'true' || withinSla === 'true') {
+          const now = new Date();
+          filteredTickets = filteredTickets.filter((ticket: Ticket) => {
+            // Only check active tickets
+            if (ticket.status === 'resolved' || ticket.status === 'closed') {
+              return false;
+            }
+            
+            if (!ticket.slaResolutionDue) {
+              return false;
+            }
+            
+            const deadline = new Date(ticket.slaResolutionDue);
+            const isBreached = now > deadline;
+            
+            if (slaBreached === 'true') {
+              return isBreached;
+            } else if (withinSla === 'true') {
+              return !isBreached;
+            }
+            
+            return true;
+          });
+        }
+        
+        setTickets(filteredTickets);
       }
     } catch (error: any) {
       console.error('Error fetching tickets:', error);
       setError('Failed to load tickets. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const canDeleteTickets = () => {
+    return user && (
+      user.role === 'super_admin' ||
+      user.role === 'admin' ||
+      user.permissions?.canDeleteTickets
+    );
+  };
+
+  const handleSelectTicket = (ticketId: string) => {
+    setSelectedTickets(prev =>
+      prev.includes(ticketId)
+        ? prev.filter(id => id !== ticketId)
+        : [...prev, ticketId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTickets.length === tickets.length) {
+      setSelectedTickets([]);
+    } else {
+      setSelectedTickets(tickets.map(t => t._id));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedTickets.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedTickets.length} ticket(s)? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      // Delete tickets one by one
+      const deletePromises = selectedTickets.map(ticketId =>
+        api.delete(`/tickets/${ticketId}`)
+      );
+
+      await Promise.all(deletePromises);
+      
+      toast.success(`Successfully deleted ${selectedTickets.length} ticket(s)`);
+      setSelectedTickets([]);
+      fetchTickets(); // Refresh the list
+    } catch (error: any) {
+      console.error('Error deleting tickets:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete some tickets');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -132,15 +240,26 @@ const TicketsPage: React.FC = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
-    const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
     
-    if (diffHours < 0) {
-      return { text: `Overdue by ${Math.abs(diffHours)}h`, isOverdue: true };
-    } else if (diffHours < 24) {
-      return { text: `${diffHours}h remaining`, isOverdue: false };
+    if (diffMs < 0) {
+      // Overdue
+      const absDiffMs = Math.abs(diffMs);
+      const hours = Math.floor(absDiffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((absDiffMs % (1000 * 60 * 60)) / (1000 * 60));
+      return { text: `Overdue by ${hours}h ${minutes}m`, isOverdue: true };
     } else {
-      const diffDays = Math.ceil(diffHours / 24);
-      return { text: `${diffDays}d remaining`, isOverdue: false };
+      // Time remaining
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+      
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        const remainingHours = hours % 24;
+        return { text: `${days}d ${remainingHours}h remaining`, isOverdue: false };
+      } else {
+        return { text: `${hours}h ${minutes}m ${seconds}s remaining`, isOverdue: false };
+      }
     }
   };
 
@@ -233,6 +352,24 @@ const TicketsPage: React.FC = () => {
     );
   }
 
+  // Get active filter for display
+  const getActiveFilter = () => {
+    const status = searchParams.get('status');
+    const resolvedToday = searchParams.get('resolvedToday');
+    const slaBreached = searchParams.get('slaBreached');
+    const withinSla = searchParams.get('withinSla');
+    
+    if (status === 'open') return '📂 Open Tickets';
+    if (status === 'in_progress') return '⏳ In Progress Tickets';
+    if (status === 'resolved' && resolvedToday === 'true') return '✅ Resolved Today';
+    if (status === 'resolved') return '✅ Resolved Tickets';
+    if (slaBreached === 'true') return '🚨 SLA Breached Tickets';
+    if (withinSla === 'true') return '✅ Within SLA Tickets';
+    return null;
+  };
+
+  const activeFilter = getActiveFilter();
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -250,10 +387,40 @@ const TicketsPage: React.FC = () => {
         </Link>
       </div>
 
+      {/* Active Filter Banner */}
+      {activeFilter && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">{activeFilter.split(' ')[0]}</div>
+            <div>
+              <p className="font-semibold text-gray-900">{activeFilter}</p>
+              <p className="text-sm text-gray-600">Showing {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <Link
+            to="/tickets"
+            className="text-sm font-medium text-blue-600 hover:text-blue-700 underline"
+          >
+            Clear Filter
+          </Link>
+        </div>
+      )}
+
       {/* Tickets List */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-base font-medium text-gray-900">All Tickets</h3>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-base font-medium text-gray-900">{activeFilter || 'All Tickets'}</h3>
+          
+          {canDeleteTickets() && selectedTickets.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              disabled={isDeleting}
+              className="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Delete {selectedTickets.length} Selected</span>
+            </button>
+          )}
         </div>
         
         {tickets.length === 0 ? (
@@ -274,6 +441,16 @@ const TicketsPage: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    {canDeleteTickets() && (
+                      <th className="px-4 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          checked={selectedTickets.length === tickets.length && tickets.length > 0}
+                          onChange={handleSelectAll}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        />
+                      </th>
+                    )}
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Ticket ID
                     </th>
@@ -309,6 +486,17 @@ const TicketsPage: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {tickets.filter(ticket => ticket && ticket._id).map((ticket) => (
                     <tr key={ticket._id} className="hover:bg-gray-50 transition-colors">
+                      {canDeleteTickets() && (
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedTickets.includes(ticket._id)}
+                            onChange={() => handleSelectTicket(ticket._id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Link 
                           to={`/tickets/${ticket.ticketId || ticket._id}`}
@@ -369,8 +557,8 @@ const TicketsPage: React.FC = () => {
                             );
                           }
                           
-                          // For active tickets, show remaining time
-                          const slaInfo = formatSLATime(ticket.slaResponseDue);
+                          // For active tickets, show remaining time based on Resolution SLA
+                          const slaInfo = formatSLATime(ticket.slaResolutionDue);
                           if (!slaInfo) return <span className="text-xs text-gray-400">No SLA</span>;
                           return (
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${

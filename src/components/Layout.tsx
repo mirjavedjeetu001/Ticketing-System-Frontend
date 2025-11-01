@@ -16,7 +16,9 @@ import {
   ChevronUp,
   Boxes,
   Tags,
-  Star
+  Star,
+  Building2,
+  Building
 } from 'lucide-react';
 import logo from '../assets/logo-pulse.png';
 
@@ -40,16 +42,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Tickets', href: '/tickets', icon: Ticket },
-    ...(user?.role === 'admin' ? [
-      { name: 'Users', href: '/users', icon: Users },
-    ] : []),
   ];
 
-  const adminNavigation = user?.role === 'admin' ? [
+  const adminNavigation = user?.role ? [
+    { name: 'Companies', href: '/admin/companies', icon: Building2, description: 'Manage company profiles and settings' },
+    { name: 'Business Units', href: '/admin/business-units', icon: Building, description: 'Manage business units (SSL, SFL, SML, etc.)' },
+    { name: 'Departments', href: '/admin/departments', icon: Users, description: 'Manage departments and user roles' },
+    { name: 'Teams', href: '/admin/teams', icon: Users, description: 'Manage teams and members' },
+    { name: 'Users', href: '/admin/users', icon: Users, description: 'Manage users, roles, and permissions' },
     { name: 'Products', href: '/admin/products', icon: Boxes, description: 'Manage products and their configurations' },
     { name: 'Features', href: '/admin/features', icon: Star, description: 'Manage product features for issue categorization' },
     { name: 'Categories', href: '/admin/categories', icon: Tags, description: 'Configure issue categories and SLA settings' },
-    { name: 'Departments', href: '/admin/departments', icon: Users, description: 'Manage departments and user roles' },
     { name: 'System Settings', href: '/admin/system-settings', icon: Settings, description: 'Configure severities, priorities, and SLA rules' },
   ] : [];
 
@@ -129,7 +132,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             })}
 
             {/* Admin Section */}
-            {user?.role === 'admin' && (
+            {(user?.role === 'super_admin' || user?.role === 'admin' || user?.permissions?.canManageUsers) && (
               <div className="mt-6">
                 <div className="relative group">
                   <button
